@@ -120,12 +120,13 @@ def wordnet_expan(obj_lst: [Query], max_syns):
                         obj_lst[on].expansion_synonyms[ter] = tmp_exp_syns[ter]
 
 
-# source_file = sys.argv[1]
-# original_queries_file = sys.argv[2]
-# queries_out_file = sys.argv[3]
+
 source_file = 'results_Bi+Q.trec'
 original_queries_file = 'queries_Bi'
 queries_out_file = 'queries_Bii'
+# source_file = sys.argv[1]
+# original_queries_file = sys.argv[2]
+# queries_out_file = sys.argv[3]
 
 # get and parse expanded queries
 with open(source_file) as f:
@@ -180,19 +181,17 @@ lines.append('<count>1000</count>')
 lines.append('<trecFormat>true</trecFormat>')
 
 for o in query_obj_list:
-    original = o.original
+    original = "#combine("
     original_synonyms = ""
-    print(o.number)
-    print(o.original)
-    print(o.original_terms)
-    print(o.original_synonyms)
-
+    original += o.original
     for syns in o.original_synonyms.values():
         # syns is a list of synonyms for each term
         if syns:
             for syn in syns:
                 original_synonyms += syn.replace('-', '').replace('_', '')
                 original_synonyms += " "
+    original += f'{original_synonyms} )'
+
     expansion = "#weight( "
     # iterate expansion terms:
     for i in range(len(o.expansion_terms)):
@@ -214,7 +213,7 @@ for o in query_obj_list:
             # create the whole expansion part of the string containing both expansion terms
             expansion += weight + f'"{term}"' + ' '
     expansion += ")"
-    text = f'#weight( {fb_orig_weight} #combine({original} {original_synonyms}) {1 - fb_orig_weight} {expansion} )'
+    text = f'#weight( {fb_orig_weight} {original} {1 - fb_orig_weight} {expansion} )'
     lines.append(f'<query> <type>indri</type> <number>{o.number}</number> <text>{text}</text> </query>')
 lines.append('</parameters>')
 
@@ -225,3 +224,24 @@ with open(queries_out_file, 'w') as f:
 f.close()
 
 # '#weight( {fb_orig_weight} #combine( {original} {synonyms} ) {1-fb_orig_weight} #weight({expansion_weight} #combine({expansion_term} {expansion_synonyms}) ) )'
+
+# original = "#combine("
+# # iterate original terms:
+# for i in range(len(o.original_terms)):
+#     term = o.original_terms[i]
+#     syns_part = ""
+#     # check if term exists in dictionary of synonyms
+#     if term in o.original_synonyms:
+#         # check if it has any synonyms
+#         if o.original_synonyms[term]:
+#             # get synonyms for each extra term
+#             for syn in o.original_synonyms[term]:
+#                 # create the synonyms part of the string
+#                 syns_part += f'"{syn}" '.replace('-', '').replace('_', '')
+#                 # create the whole expansion part of the string containing both expansion terms and its synonyms
+#                 original += f'#syn("{term}" {syns_part})' + ' '
+#     else:
+#         # no synonyms
+#         # create the whole expansion part of the string containing both expansion terms
+#         original += f'"{term}" '
+# original += ")"
