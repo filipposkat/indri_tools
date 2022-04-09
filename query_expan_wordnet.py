@@ -21,14 +21,20 @@ class Query:
     expansion_synonyms = {}
 
     def __init__(self, original_q, expanded):
+        self.expanded = expanded
         self.original = original_q.lower()
+        self.expansion = None
+        self.expansion_weights = []
+        self.expansion_terms = []
+        self.number = None
+        self.original_synonyms = {}
+        self.expansion_synonyms = {}
         tmp = []
         for el in original_q.split(' '):
             if not el == '\n':
                 # save the lower case version of terms
                 tmp.append(el.lower())
-        self.original_terms = tmp.copy()
-        self.expanded = expanded
+        self.original_terms = tmp
 
 
 def str_between_strs(s, str1, str2):
@@ -79,7 +85,7 @@ def wordnet_expan(obj_lst: [Query], max_syns):
             ter = obj_lst[on].original_terms[n]
             # exclude small words from expansion:
             if len(ter) > 3:
-                synons = copy.deepcopy([synset.name().split('.')[0] for synset in wordnet.synsets(ter)])
+                synons = [synset.name().split('.')[0] for synset in wordnet.synsets(ter)]
                 # if synonyms exist:
                 if synons:
                     tmp_orig_syns[ter] = []
@@ -90,7 +96,7 @@ def wordnet_expan(obj_lst: [Query], max_syns):
                             count += 1
                         if count >= max_syns:
                             break
-                    obj_lst[on].original_synonyms[ter] = copy.deepcopy(tmp_orig_syns[ter])
+                    obj_lst[on].original_synonyms[ter] = tmp_orig_syns[ter]
 
         if obj_lst[on].expanded:
             obj_lst[on].expansion_synonyms = {}
@@ -111,7 +117,7 @@ def wordnet_expan(obj_lst: [Query], max_syns):
                                 count += 1
                             if count >= max_syns:
                                 break
-                        obj_lst[on].expansion_synonyms[ter] = tmp_exp_syns[ter].copy()
+                        obj_lst[on].expansion_synonyms[ter] = tmp_exp_syns[ter]
 
 
 # source_file = sys.argv[1]
