@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/TopicToQuery.iml" filepath="$PROJECT_DIR$/.idea/TopicToQuery.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../IndriTools/.idea/IndriTools.iml" filepath="$PROJECT_DIR$/../IndriTools/.idea/IndriTools.iml" />
     </modules>
   </component>
 </project>
