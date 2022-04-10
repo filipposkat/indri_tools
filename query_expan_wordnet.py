@@ -6,7 +6,9 @@ import nltk
 
 nltk.download('wordnet')
 nltk.download('omw-1.4')
+nltk.download('stopwords')
 from nltk.corpus import wordnet
+from nltk.corpus import stopwords
 
 
 class Query:
@@ -35,6 +37,13 @@ class Query:
                 # save the lower case version of terms
                 tmp.append(el.lower())
         self.original_terms = tmp
+
+
+def remove_chars(s, chars):
+    for c in chars:
+        if c in s:
+            s = s.replace(c, '')
+    return s
 
 
 def str_between_strs(s, str1, str2):
@@ -85,15 +94,20 @@ def wordnet_expan(obj_lst: [Query], max_syns):
             ter = obj_lst[on].original_terms[n]
             # exclude small words from expansion:
             if len(ter) > 3:
-                synons = [synset.name().split('.')[0] for synset in wordnet.synsets(ter)]
+                # The following is a list of lists of same meaning synonyms
+                synons = [synset.lemma_names() for synset in wordnet.synsets(ter)]
                 # if synonyms exist:
                 if synons:
                     tmp_orig_syns[ter] = []
                     count = 0
-                    for sy in synons:
-                        if sy not in obj_lst[on].original_terms:
-                            tmp_orig_syns[ter].append(sy)
-                            count += 1
+                    for similar_synons in synons:
+                        for sy in similar_synons:
+                            s = remove_chars(sy, '''!()[]{}';:\,<>?/@#$%^&*_~.''').lower()
+                            if s not in obj_lst[on].original_terms and s not in tmp_orig_syns[ter]:
+                                tmp_orig_syns[ter].append(s)
+                                count += 1
+                                # go to next set of similar synons for the word:
+                                break
                         if count >= max_syns:
                             break
                     obj_lst[on].original_synonyms[ter] = tmp_orig_syns[ter]
@@ -106,19 +120,33 @@ def wordnet_expan(obj_lst: [Query], max_syns):
                 ter = obj_lst[on].expansion_terms[n]
                 # exclude small words from expansion:
                 if len(ter) > 3:
-                    synons = [synset.name().split('.')[0] for synset in wordnet.synsets(ter)]
+                    # The following is a list of lists of same meaning synonyms
+                    synons = [synset.lemma_names() for synset in wordnet.synsets(ter)]
                     # if synonyms exist:
                     if synons:
                         tmp_exp_syns[ter] = []
                         count = 0
-                        for sy in synons:
-                            if sy not in obj_lst[on].expansion_terms:
-                                tmp_exp_syns[ter].append(sy)
-                                count += 1
+                        for similar_synons in synons:
+                            for sy in similar_synons:
+                                s = remove_chars(sy, '''!()[]{}';:\,<>?/@#$%^&*_~.''').lower()
+                                if s not in obj_lst[on].expansion_terms and s not in tmp_exp_syns[ter]:
+                                    tmp_exp_syns[ter].append(s)
+                                    count += 1
+                                    # go to next set of similar synons for the word:
+                                    break
                             if count >= max_syns:
                                 break
                         obj_lst[on].expansion_synonyms[ter] = tmp_exp_syns[ter]
 
+
+def create_indri_stoplist():
+    stoplist = stopwords.words('english')
+    indri_stoplist = "<stopper>"
+    for stopword in stoplist:
+        sw = remove_chars(stopword, '''!()[]{}';:\,<>?/@#$%^&*_~.''')
+        indri_stoplist += f'<word>{sw}</word>'
+    indri_stoplist += "</stopper>"
+    return indri_stoplist
 
 
 source_file = 'results_Bi+Q.trec'
@@ -128,13 +156,16 @@ queries_out_file = 'queries_Bii'
 # original_queries_file = sys.argv[2]
 # queries_out_file = sys.argv[3]
 
+MAX_SYNONYMS = 1
+# original term has weight = 1
+SYNONYM_WEIGHT = 0.2
+
 # get and parse expanded queries
 with open(source_file) as f:
     source = f.read()
 f.close()
 
 query_obj_list = parse_exp_queries(source)
-
 
 # get and parse original queries:
 with open(original_queries_file) as f:
@@ -170,8 +201,10 @@ for orig in orig_query_obj_lst:
         query_obj_list.append(orig)
 
 # find synonyms for each object:
-wordnet_expan(query_obj_list, 1)
+wordnet_expan(query_obj_list, MAX_SYNONYMS)
 
+# create indri stoplist from nltk
+stoplist_param = create_indri_stoplist()
 # create new queries file:
 lines = []
 lines.append('<parameters>')
@@ -179,18 +212,39 @@ lines.append(f'<index>{index}</index>')
 lines.append('<rule>method:dirichlet,mu:1000</rule>')
 lines.append('<count>1000</count>')
 lines.append('<trecFormat>true</trecFormat>')
+# lines.append(stoplist_param)
 
 for o in query_obj_list:
-    original = "#combine("
-    original_synonyms = ""
-    original += o.original
-    for syns in o.original_synonyms.values():
-        # syns is a list of synonyms for each term
-        if syns:
-            for syn in syns:
-                original_synonyms += syn.replace('-', '').replace('_', '')
-                original_synonyms += " "
-    original += f'{original_synonyms} )'
+    # original = f"#combine({o.original} "
+    # original_synonyms = ""
+    # for syns in o.original_synonyms.values():
+    #     # syns is a list of synonyms for each term
+    #     if syns:
+    #         for syn in syns:
+    #             original_synonyms += syn.replace('-', '').replace('_', '')
+    #             original_synonyms += " "
+    # original += f'{original_synonyms} )'
+
+    original = f"#combine("
+    # iterate original terms:
+    for i in range(len(o.original_terms)):
+        term = o.original_terms[i]
+        syns_part = ""
+        # check if term exists in dictionary of synonyms
+        if term in o.original_synonyms:
+            # check if it has any synonyms
+            if o.original_synonyms[term]:
+                # get synonyms for each extra term
+                for syn in o.original_synonyms[term]:
+                    # create the synonyms part of the string
+                    syns_part += f'{SYNONYM_WEIGHT} "{syn}" '
+                    # create the whole expansion part of the string containing both expansion terms and its synonyms
+                    original += f'#wsyn(1.0 {term} {syns_part})' + ' '
+        else:
+            # no synonyms
+            # create the whole expansion part of the string containing both expansion terms
+            original += f'"{term}" '
+    original += ")"
 
     expansion = "#weight( "
     # iterate expansion terms:
@@ -205,9 +259,9 @@ for o in query_obj_list:
                 # get synonyms for each extra term
                 for syn in o.expansion_synonyms[term]:
                     # create the synonyms part of the string
-                    syns_part += f'"{syn}" '.replace('-', '').replace('_', '')
+                    syns_part += f'{SYNONYM_WEIGHT} "{syn}" '
                     # create the whole expansion part of the string containing both expansion terms and its synonyms
-                    expansion += weight + f'#combine("{term}" {syns_part})' + ' '
+                    expansion += weight + f'#wsyn(1.0 "{term}" {syns_part})' + ' '
         else:
             # no synonyms
             # create the whole expansion part of the string containing both expansion terms
@@ -224,24 +278,3 @@ with open(queries_out_file, 'w') as f:
 f.close()
 
 # '#weight( {fb_orig_weight} #combine( {original} {synonyms} ) {1-fb_orig_weight} #weight({expansion_weight} #combine({expansion_term} {expansion_synonyms}) ) )'
-
-# original = "#combine("
-# # iterate original terms:
-# for i in range(len(o.original_terms)):
-#     term = o.original_terms[i]
-#     syns_part = ""
-#     # check if term exists in dictionary of synonyms
-#     if term in o.original_synonyms:
-#         # check if it has any synonyms
-#         if o.original_synonyms[term]:
-#             # get synonyms for each extra term
-#             for syn in o.original_synonyms[term]:
-#                 # create the synonyms part of the string
-#                 syns_part += f'"{syn}" '.replace('-', '').replace('_', '')
-#                 # create the whole expansion part of the string containing both expansion terms and its synonyms
-#                 original += f'#syn("{term}" {syns_part})' + ' '
-#     else:
-#         # no synonyms
-#         # create the whole expansion part of the string containing both expansion terms
-#         original += f'"{term}" '
-# original += ")"

@@ -1,6 +1,8 @@
 import sys
 import re
-
+import nltk
+nltk.download('stopwords')
+from nltk.corpus import stopwords
 
 # Press Shift+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
@@ -27,6 +29,16 @@ def remove_chars(s, chars):
         if c in s:
             s = s.replace(c, '')
     return s
+
+
+def create_indri_stoplist():
+    stoplist = stopwords.words('english')
+    indri_stoplist = "<stopper>"
+    for stopword in stoplist:
+        sw = remove_chars(stopword,'''!()[]{}';:\,<>?/@#$%^&*_~.''')
+        indri_stoplist += f'<word>{sw}</word>'
+    indri_stoplist += "</stopper>"
+    return indri_stoplist
 
 
 # topics_file = sys.argv[1]
@@ -60,11 +72,15 @@ for topic in topics:
     # desc = topic.find('desc').text.replace(' Description: ', '', 1)
     # narr = topic.find('narr').text.replace(' Narrative: ', '', 1)
     num = int(str_between_strs(topic, '<num> Number: ', '<title>').strip())
-    title = remove_chars(str_between_strs(topic, '<title> ', '<desc>').strip(), '''!()[]{};:\,<>?/@#$%^&*_~.''') #using tiple quotes disables escape \
-    desc = remove_chars(str_between_strs(topic, '<desc> Description: ', '<narr>').strip().replace('\n', ' '), '''!()[]{};:\,<>?/@#$%^&*_~.''')
-    narr = remove_chars(str_between_strs(topic, '<narr> Narrative: ', '\n').strip().replace('\n', ' '), '''!()[]{};:\,<>?/@#$%^&*_~.''')
+    title = remove_chars(str_between_strs(topic, '<title> ', '<desc>').strip(), '''!()[]{}';:\,<>?/@#$%^&*_~.''').lower() #using tiple quotes disables escape \
+    desc = remove_chars(str_between_strs(topic, '<desc> Description: ', '<narr>').strip().replace('\n', ' '), '''!()[]{}';:\,<>?/@#$%^&*_~.''').lower()
+    narr = remove_chars(str_between_strs(topic, '<narr> Narrative: ', '\n').strip().replace('\n', ' '), '''!()[]{}';:\,<>?/@#$%^&*_~.''').lower()
     top = Topic(num, title, desc, narr)
     topic_objs.append(top)
+
+
+# create indri stoplist from nltk
+#stoplist_param = create_indri_stoplist()
 
 lines = []
 lines.append('<parameters>')
@@ -72,6 +88,7 @@ lines.append('<index>./indices/trec7-8</index>')
 lines.append('<rule>method:dirichlet,mu:1000</rule>')
 lines.append('<count>1000</count>')
 lines.append('<trecFormat>true</trecFormat>')
+#lines.append(stoplist_param)
 
 for obj in topic_objs:
     if option == 1:
