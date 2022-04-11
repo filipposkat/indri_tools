@@ -10,6 +10,12 @@ nltk.download('stopwords')
 from nltk.corpus import wordnet
 from nltk.corpus import stopwords
 
+MAX_SYNONYMS = 1
+MIN_LENGTH_FOR_EXPAN = 5
+NOUNS_ONLY = False
+# original term has weight = 1
+SYNONYM_WEIGHT = 0.1
+
 
 class Query:
     expanded = False
@@ -24,7 +30,7 @@ class Query:
 
     def __init__(self, original_q, expanded):
         self.expanded = expanded
-        self.original = original_q.lower()
+        self.original = original_q.lower().strip()
         self.expansion = None
         self.expansion_weights = []
         self.expansion_terms = []
@@ -84,7 +90,7 @@ def parse_exp_queries(src):
     return query_obj_lst.copy()
 
 
-def wordnet_expan(obj_lst: [Query], max_syns):
+def wordnet_expan(obj_lst: [Query], max_syns=1, min_len=4, nouns_only=False):
     # iterate all queries:
     for on in range(len(obj_lst)):
         obj_lst[on].expansion_synonyms = {}
@@ -93,9 +99,12 @@ def wordnet_expan(obj_lst: [Query], max_syns):
         for n in range(len(obj_lst[on].original_terms)):
             ter = obj_lst[on].original_terms[n]
             # exclude small words from expansion:
-            if len(ter) > 3:
+            if len(ter) >= min_len:
                 # The following is a list of lists of same meaning synonyms
-                synons = [synset.lemma_names() for synset in wordnet.synsets(ter)]
+                if nouns_only:
+                    synons = [synset.lemma_names() for synset in wordnet.synsets(ter, pos=wordnet.NOUN)]
+                else:
+                    synons = [synset.lemma_names() for synset in wordnet.synsets(ter)]
                 # if synonyms exist:
                 if synons:
                     tmp_orig_syns[ter] = []
@@ -119,9 +128,13 @@ def wordnet_expan(obj_lst: [Query], max_syns):
             for n in range(len(obj_lst[on].expansion_terms)):
                 ter = obj_lst[on].expansion_terms[n]
                 # exclude small words from expansion:
-                if len(ter) > 3:
+                if len(ter) >= min_len:
                     # The following is a list of lists of same meaning synonyms
-                    synons = [synset.lemma_names() for synset in wordnet.synsets(ter)]
+                    if nouns_only:
+                        synons = [synset.lemma_names() for synset in wordnet.synsets(ter, pos=wordnet.NOUN)]
+                    else:
+                        synons = [synset.lemma_names() for synset in wordnet.synsets(ter)]
+
                     # if synonyms exist:
                     if synons:
                         tmp_exp_syns[ter] = []
@@ -156,10 +169,6 @@ queries_out_file = 'queries_Bii'
 # original_queries_file = sys.argv[2]
 # queries_out_file = sys.argv[3]
 
-MAX_SYNONYMS = 1
-# original term has weight = 1
-SYNONYM_WEIGHT = 0.2
-
 # get and parse expanded queries
 with open(source_file) as f:
     source = f.read()
@@ -191,7 +200,7 @@ query_nums_in_both_lists = []
 for i in range(len(query_obj_list)):
     for j in range(len(orig_query_obj_lst)):
         # if query is the same
-        if query_obj_list[i].original == orig_query_obj_lst[j].original:
+        if query_obj_list[i].original == orig_query_obj_lst[j].original.lower().strip():
             num = orig_query_obj_lst[j].number
             query_obj_list[i].number = num
             query_nums_in_both_lists.append(num)
@@ -201,7 +210,7 @@ for orig in orig_query_obj_lst:
         query_obj_list.append(orig)
 
 # find synonyms for each object:
-wordnet_expan(query_obj_list, MAX_SYNONYMS)
+wordnet_expan(query_obj_list, MAX_SYNONYMS, MIN_LENGTH_FOR_EXPAN, NOUNS_ONLY)
 
 # create indri stoplist from nltk
 stoplist_param = create_indri_stoplist()
