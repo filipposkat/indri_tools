@@ -41,12 +41,14 @@ def create_indri_stoplist():
     return indri_stoplist
 
 
-# topics_file = sys.argv[1]
-# queries_out_file = sys.argv[2]
-# option = int(sys.argv[3])  # 1 = title, 2 = title+desc, 3=title+desc+narr
+
 topics_file = 'topics.trec6'
 queries_out_file = 'qout'
 option = 3
+if len(sys.argv)==4:
+    topics_file = sys.argv[1]
+    queries_out_file = sys.argv[2]
+    option = int(sys.argv[3])  # 1 = title, 2 = title+desc, 3=title+desc+narr
 
 if (option == 1):
     print('Option 1: title')

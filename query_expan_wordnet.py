@@ -165,9 +165,10 @@ def create_indri_stoplist():
 source_file = 'results_Bi+Q.trec'
 original_queries_file = 'queries_Bi'
 queries_out_file = 'queries_Bii'
-# source_file = sys.argv[1]
-# original_queries_file = sys.argv[2]
-# queries_out_file = sys.argv[3]
+if len(sys.argv) == 4:
+    source_file = sys.argv[1]
+    original_queries_file = sys.argv[2]
+    queries_out_file = sys.argv[3]
 
 # get and parse expanded queries
 with open(source_file) as f:
